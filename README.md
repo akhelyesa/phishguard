@@ -11,8 +11,12 @@
 <h1>PhishGuard</h1>
 
 <p>
-  Local AI phishing email detector — paste a suspicious message, get a risk score,
-  an explanation, and URL threat signals before you click.
+  Paste a suspicious email. Get a risk score, a short explanation,
+  and a check on any links before you click.
+</p>
+
+<p>
+  Runs on your own computer. Not published as a public web service.
 </p>
 
 <p>
@@ -40,8 +44,8 @@
     <li><a href="#getting-started">Getting Started</a>
       <ul>
         <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation-local-dev">Installation (local dev)</a></li>
         <li><a href="#installation-docker">Installation (Docker)</a></li>
+        <li><a href="#installation-local-dev">Installation (local dev)</a></li>
       </ul>
     </li>
     <li><a href="#usage">Usage</a></li>
@@ -53,19 +57,18 @@
   </ol>
 </details>
 
----
-
 ## About The Project
 
-PhishGuard is a **local-first** phishing triage tool. You paste an email (subject + body), and the system returns:
+PhishGuard helps you double-check emails that feel off. Paste the subject and body. You get:
 
-- A **risk score** (0–100)
-- A **classification** (`safe` / `suspicious` / `phishing`)
-- A short **explanation**
-- **Highlighted cue phrases** and **SHAP top contributors** (which features pushed the score)
-- **URL threat analysis** for links found in the message
+- A **risk score** from 0 to 100
+- A label: **safe**, **suspicious**, or **phishing**
+- A short **explanation** in normal language
+- **Highlighted phrases** that look like scam cues
+- A short list of **what pushed the score** (SHAP: which features raised or lowered risk)
+- A **URL check** for links in the message
 
-It is designed as a personal second opinion — not a replacement for Gmail/Outlook filters or antivirus — and is meant to run on your machine (dev servers or Docker), not as a public cloud service.
+This is a personal second opinion. It does not replace Gmail, Outlook, or antivirus.
 
 <!-- Optional: add a screenshot -->
 <!-- ![PhishGuard dashboard](images/screenshot.png) -->
@@ -77,12 +80,12 @@ It is designed as a personal second opinion — not a replacement for Gmail/Outl
 | Area | What you get |
 |------|----------------|
 | **Email analysis** | Subject + body (+ optional URLs) → score, label, explanation |
-| **Explainability** | SHAP top contributing features + highlighted danger words in the UI |
-| **URL checks** | Rule-based signals (HTTPS, IP hosts, shorteners, login keywords, etc.) |
-| **ML pipeline** | TF-IDF + handcrafted features → XGBoost (LR & Random Forest baselines for comparison) |
-| **Dashboard** | React UI: risk meter, highlights, link panel, recent checks |
-| **API** | FastAPI: `POST /analyze/email`, `POST /analyze/url` |
-| **Docker** | `docker compose` runs API + UI together |
+| **Explainability** | Flagged words in the text + SHAP feature list |
+| **URL checks** | HTTPS, IP hosts, shorteners, login-style words, and similar signals |
+| **ML pipeline** | Text features + counts → XGBoost (LR and Random Forest printed for comparison when training) |
+| **Dashboard** | Risk meter, highlights, link panel, recent checks |
+| **API** | `POST /analyze/email`, `POST /analyze/url` |
+| **Docker** | One command for API + UI |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -100,7 +103,7 @@ It is designed as a personal second opinion — not a replacement for Gmail/Outl
 
 ### Architecture
 
-Clean Architecture layout — each layer has one job:
+Each folder has one job:
 
 ```text
 phishguard/
@@ -109,30 +112,45 @@ phishguard/
 │   │   ├── api/          # HTTP routers only
 │   │   ├── core/         # Business logic (email analyzer, URL checker)
 │   │   ├── ml/           # Feature extraction, training, prediction, SHAP
-│   │   ├── schemas/      # Pydantic request/response models
+│   │   ├── schemas/      # Request and response shapes
 │   │   └── main.py       # FastAPI entry point
-│   ├── data/             # Training CSVs (large archives kept local)
+│   ├── data/             # Training CSVs (large files stay local)
 │   └── requirements.txt
 ├── frontend/             # React dashboard
 └── docker-compose.yml
 ```
 
-* **api** → receives JSON, returns JSON
-* **core** → orchestrates analysis policy
-* **ml** → features, model, SHAP (no HTTP)
+* **api** receives and returns JSON
+* **core** runs the analysis rules
+* **ml** owns features, the model, and SHAP
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
 
 ## Getting Started
 
 ### Prerequisites
 
-* [Python 3.11+](https://www.python.org/downloads/)
-* [Node.js 20+](https://nodejs.org/) (for local frontend)
-* [Docker Desktop](https://www.docker.com/products/docker-desktop/) (optional, for one-command run)
-* A trained model at `backend/app/ml/models/phishing_model.pkl` (included in this repo; retrain with the steps below if you change features)
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/) (easiest way to run)
+* Or [Python 3.11+](https://www.python.org/downloads/) and [Node.js 20+](https://nodejs.org/) for local development
+* Trained model at `backend/app/ml/models/phishing_model.pkl` (included in this repo)
+
+### Installation (Docker)
+
+From the project root. Stop local uvicorn/npm first if ports 8000 or 8080 are busy:
+
+```sh
+git clone https://github.com/akhelyesa/phishguard.git
+cd phishguard
+docker compose up --build
+```
+
+* UI: [http://localhost:8080](http://localhost:8080)
+* API: [http://localhost:8000](http://localhost:8000)
+* Health: [http://localhost:8000/health](http://localhost:8000/health)
+
+After backend or model changes, run `docker compose up --build` again.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Installation (local dev)
 
@@ -172,35 +190,15 @@ phishguard/
 
    UI: [http://127.0.0.1:5173](http://127.0.0.1:5173)
 
-### Installation (Docker)
-
-From the project root (stop local uvicorn/npm first if ports are busy):
-
-```sh
-docker compose up --build
-```
-
-* UI: [http://localhost:8080](http://localhost:8080)
-* API: [http://localhost:8000](http://localhost:8000)
-* Health: [http://localhost:8000/health](http://localhost:8000/health)
-
-Rebuild after model or backend changes:
-
-```sh
-docker compose up --build
-```
-
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
 
 ## Usage
 
 ### Dashboard
 
-1. Open the UI (Vite or Docker).
-2. Paste subject + body (or paste a raw email into the form).
-3. Click **Analyze** — review the risk meter, explanation, SHAP contributors, and link results.
+1. Open the UI (Docker or Vite).
+2. Paste subject and body (or paste a raw email into the form).
+3. Click **Analyze**. Check the score, explanation, flagged phrases, and links.
 
 ### API examples
 
@@ -232,25 +230,23 @@ Interactive docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 ### Security note (local use)
 
-This tool is intended for **local personal use**. Do not paste highly sensitive mail into a shared machine. Input size limits are enforced via Pydantic. Dependency scans:
+Use this on your own machine. Avoid pasting highly sensitive mail on a shared PC. Oversized pastes are rejected. To scan dependencies:
 
 ```sh
-# from project root, venv active
 python -m pip_audit -r backend/requirements.txt
-
 cd frontend
 npm run audit
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
----
-
 ## Training the Model
 
-Training data expects columns: `text_combined`, `label` (`0` = safe, `1` = phishing).
+Optional. Only needed if you change features or add labeled emails.
 
-Default dataset path: `backend/data/archive/phishing_email.csv` (kept local — not in git; large files).
+Training CSV columns: `text_combined`, `label` (`0` = safe, `1` = phishing).
+
+Default path: `backend/data/archive/phishing_email.csv` (kept local, not in git).
 
 ```sh
 cd backend
@@ -260,47 +256,39 @@ python -m app.ml.trainer
 
 The trainer:
 
-1. Fits the feature extractor (TF-IDF + handcrafted features, including capital-letter ratio)
-2. Prints **Logistic Regression** and **Random Forest** holdout metrics (baselines only)
-3. Trains and saves **XGBoost** (+ extractor) to `backend/app/ml/models/phishing_model.pkl`
+1. Builds features from the email text
+2. Prints Logistic Regression and Random Forest holdout scores for comparison
+3. Saves the XGBoost model to `backend/app/ml/models/phishing_model.pkl`
 
 ### Improving with your own misses (`my_extra.csv`)
 
-Planned workflow:
-
 1. Use PhishGuard on real mail
-2. Log wrong predictions into `my_extra.csv` (`text_combined,label`)
-3. After ~50+ rows, merge with the main CSV and retrain
+2. Log wrong predictions in `my_extra.csv` (`text_combined,label`)
+3. After about 50+ rows, merge with the main CSV and retrain
 
-*(Automatic merge of `my_extra.csv` in the trainer is on the roadmap — today it loads the main CSV only.)*
+Auto-merge of `my_extra.csv` is not built yet. The trainer loads the main CSV only.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
 
 ## Roadmap
 
 - [x] ML pipeline (features → train → predict)
 - [x] FastAPI email + URL endpoints
 - [x] React dashboard (meter, highlights, URL panel)
-- [x] SHAP top contributors in API + UI
+- [x] SHAP contributors in API + UI
 - [x] LR / RF baseline comparison at train time
 - [x] Docker Compose
 - [ ] Merge `my_extra.csv` into training automatically
-- [ ] Optional: richer SHAP heatmap in the UI
-- [ ] Optional: domain-age / reputation APIs (if ever needed)
+- [ ] Optional: richer SHAP view in the UI
+- [ ] Optional: domain-age / reputation APIs
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
 
 ## License
 
-This project is provided for personal / educational use. Add a `LICENSE` file if you want a specific open-source license (e.g. MIT).
+Personal / educational use. Add a `LICENSE` file if you want a named license (for example MIT).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
 
 ## Contact
 
@@ -310,12 +298,9 @@ Project Link: [https://github.com/akhelyesa/phishguard](https://github.com/akhel
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
----
-
 ## Acknowledgments
 
-* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) — README structure inspiration
-* [Img Shields](https://shields.io/) — badges
+* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) for README structure
 * Kaggle phishing email datasets / Enron-style legitimate mail for training data
 * FastAPI, scikit-learn, XGBoost, and SHAP communities
 
