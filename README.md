@@ -41,6 +41,7 @@
         <li><a href="#architecture">Architecture</a></li>
       </ul>
     </li>
+    <li><a href="#whats-in-this-repo">Whats in this repo</a></li>
     <li><a href="#getting-started">Getting Started</a>
       <ul>
         <li><a href="#prerequisites">Prerequisites</a></li>
@@ -126,6 +127,20 @@ phishguard/
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## Whats in this repo
+
+| Item | In the repo? | Notes |
+|------|----------------|--------|
+| Source code (backend + frontend) | Yes | Full app |
+| Trained model (`backend/app/ml/models/phishing_model.pkl`) | Yes | Enough to **run** PhishGuard |
+| Training CSV dataset | **No** | Too large for GitHub; not required to use the app |
+
+**You do not need the training CSV to use PhishGuard.** Clone the repo, start Docker or local dev, and paste an email. The included `.pkl` model scores messages for you.
+
+The CSV is only needed if you want to **retrain** the model (see [Training the Model](#training-the-model)).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## Getting Started
 
 ### Prerequisites
@@ -136,7 +151,7 @@ phishguard/
 
 ### Installation (Docker)
 
-From the project root. Stop local uvicorn/npm first if ports 8000 or 8080 are busy:
+From the project root. Stop local uvicorn/npm first if ports 8000 or 8080 are busy. The first build may take several minutes.
 
 ```sh
 git clone https://github.com/akhelyesa/phishguard.git
@@ -242,11 +257,37 @@ npm run audit
 
 ## Training the Model
 
-Optional. Only needed if you change features or add labeled emails.
+Optional. Only needed if you change features or want to rebuild the model from labeled emails.
 
-Training CSV columns: `text_combined`, `label` (`0` = safe, `1` = phishing).
+**Not required to run the app** — the shipped `.pkl` already works for analysis.
 
-Default path: `backend/data/archive/phishing_email.csv` (kept local, not in git).
+### Dataset format
+
+CSV columns must be:
+
+* `text_combined` — subject + body as one string
+* `label` — `0` (safe) or `1` (phishing)
+
+Default path expected by the trainer:
+
+`backend/data/archive/phishing_email.csv`
+
+That folder is **gitignored** (datasets are too large for GitHub). Create `backend/data/archive/` locally and place the file there.
+
+### Where to get a dataset
+
+* Download a **Kaggle phishing email** dataset that uses (or can be renamed to) `text_combined` and `label`.
+* Or build a small CSV yourself (example):
+
+```csv
+text_combined,label
+"Meeting moved to 3pm. See you then.",0
+"URGENT: Your account is suspended. Verify now at http://evil.example/login",1
+```
+
+A tiny handmade CSV is fine for learning how training works, but a weak model. Prefer a real labeled dataset for serious retraining.
+
+### Train
 
 ```sh
 cd backend
@@ -260,13 +301,7 @@ The trainer:
 2. Prints Logistic Regression and Random Forest holdout scores for comparison
 3. Saves the XGBoost model to `backend/app/ml/models/phishing_model.pkl`
 
-### Improving with your own misses (`my_extra.csv`)
-
-1. Use PhishGuard on real mail
-2. Log wrong predictions in `my_extra.csv` (`text_combined,label`)
-3. After about 50+ rows, merge with the main CSV and retrain
-
-Auto-merge of `my_extra.csv` is not built yet. The trainer loads the main CSV only.
+Restart the API (or rebuild Docker) after retraining so it loads the new model.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -278,9 +313,6 @@ Auto-merge of `my_extra.csv` is not built yet. The trainer loads the main CSV on
 - [x] SHAP contributors in API + UI
 - [x] LR / RF baseline comparison at train time
 - [x] Docker Compose
-- [ ] Merge `my_extra.csv` into training automatically
-- [ ] Optional: richer SHAP view in the UI
-- [ ] Optional: domain-age / reputation APIs
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
