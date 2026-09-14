@@ -259,7 +259,7 @@ npm run audit
 
 Optional. Only needed if you change features or want to rebuild the model from labeled emails.
 
-**Not required to run the app** — the shipped `.pkl` already works for analysis.
+**Not required to run the app,** the shipped `.pkl` already works for analysis.
 
 ### Dataset format
 
