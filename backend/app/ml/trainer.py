@@ -45,6 +45,9 @@ LABEL_COLUMN = "label"
 TEST_SIZE = 0.2 # Use 20% of the emails for testing. The remaining 80% will be used for training.
 RANDOM_STATE = 42 # same split every run so results are repeatable
 DEFAULT_CSV_NAME = "phishing_email.csv"
+EXTRA_CSV_NAME = "my_extra.csv"
+# Repeat each my_extra row this many times so miss labels actually move the model
+EXTRA_UPSAMPLE_FACTOR = 30
 
 
 def load_dataset(csv_path: Path) -> Tuple[list[str], list[int]]:
@@ -81,6 +84,44 @@ def load_dataset(csv_path: Path) -> Tuple[list[str], list[int]]:
 
     texts = df[TEXT_COLUMN].astype(str).tolist()
     labels = df[LABEL_COLUMN].astype(int).tolist()
+    return texts, labels
+
+
+def load_training_data(
+    extra_upsample: int = EXTRA_UPSAMPLE_FACTOR,
+) -> Tuple[list[str], list[int]]:
+    """
+    Load the main CSV and optionally merge my_extra.csv (miss-driven labels).
+
+    Extra rows are repeated ``extra_upsample`` times so a small miss file
+    can influence training against ~80k main rows.
+
+    Args:
+        extra_upsample: How many times to repeat each my_extra row (default 30).
+
+    Returns:
+        Combined texts and labels for training.
+    """
+    main_path = DATA_DIR / DEFAULT_CSV_NAME
+    texts, labels = load_dataset(main_path)
+    print(f"Loaded {len(texts)} emails from {main_path}")
+
+    extra_path = DATA_DIR / EXTRA_CSV_NAME
+    if extra_path.exists():
+        extra_texts, extra_labels = load_dataset(extra_path)
+        factor = max(1, int(extra_upsample))
+        up_texts = extra_texts * factor
+        up_labels = extra_labels * factor
+        texts = texts + up_texts
+        labels = labels + up_labels
+        print(
+            f"Merged {len(extra_texts)} emails from {extra_path} "
+            f"(upsampled x{factor} -> {len(up_texts)} rows)"
+        )
+        print(f"Total training emails: {len(texts)}")
+    else:
+        print(f"No extra CSV at {extra_path} — training on main dataset only.")
+
     return texts, labels
 
 
@@ -194,12 +235,17 @@ def save_artifacts(
 
 def main() -> None:
     """
-    Entry point: load CSV → train → save.
+    Entry point: load main + optional my_extra.csv → train → save.
     Run from backend/:  python -m app.ml.trainer
+    Optional: python -m app.ml.trainer 50  (upsample factor override)
     """
-    csv_path = DATA_DIR / DEFAULT_CSV_NAME
-    texts, labels = load_dataset(csv_path)
-    print(f"Loaded {len(texts)} emails from {csv_path}")
+    import sys
+
+    factor = EXTRA_UPSAMPLE_FACTOR
+    if len(sys.argv) > 1:
+        factor = int(sys.argv[1])
+
+    texts, labels = load_training_data(extra_upsample=factor)
 
     extractor, model = train_model(texts, labels)
     save_artifacts(extractor, model)
